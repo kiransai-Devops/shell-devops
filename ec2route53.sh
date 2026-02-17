@@ -2,6 +2,8 @@
 
 AMI_ID="ami-0220d79f3f480ecf5"
 SG_ID="sg-01534c2e766e1b8e9"
+ZONE_ID="Z069342217GVXMJ9BFNUK"
+DOMAIN_NAME="kidevops.shop"
 
 for instance in $@
 do 
@@ -9,10 +11,31 @@ do
     
     if [ $instance != "frontend" ]; then
        IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID  --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text)
+       RECORD_NAME="$instance.$DOMAIN_NAME"
     else
        IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID  --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+       RECORD_NAME="$DOMAIN_NAME"
     fi
 
     echo "$instance: $IP"
+
+   aws route53 change-resource-record-sets \
+   --hosted-zone-id $ZONE_ID \
+   --change-batch '
+   {
+    "Comment": "Updating record set"
+    ,"Changes": [{
+      "Action"              : "UPSERT"
+      ,"ResourceRecordSet"  : {
+        "Name"              : "'$RECORD_NAME'"
+        ,"Type"             : "A"
+        ,"TTL"              : 1
+        ,"ResourceRecords"  : [{
+            "Value"         : "'$IP'"
+        }]
+      }
+    }]
+  }
+  '
 done
 
